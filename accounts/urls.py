@@ -10,6 +10,7 @@ urlpatterns = [
     # User profiles
     path('profile/', views.UserProfileView.as_view(), name='profile'),
     path('me/', views.get_current_user, name='current_user'),
+    path('set-theme/', views.SetThemeView.as_view(), name='set_theme'),
     path('update-status/', views.UpdateOnlineStatusView.as_view(), name='update_status'),
     
     # User management

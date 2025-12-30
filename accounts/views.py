@@ -5,8 +5,14 @@ from rest_framework.authtoken.models import Token
 from rest_framework.decorators import api_view, permission_classes
 from django.contrib.auth import authenticate, login, logout
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 from accounts.models import CustomUser
-from accounts.serializers import UserSerializer, UserProfileSerializer, RegisterSerializer, LoginSerializer
+from accounts.serializers import (
+    UserSerializer, UserProfileSerializer, 
+    RegisterSerializer, LoginSerializer
+)
+from django.shortcuts import render, redirect
+from django.contrib.auth.decorators import login_required
 
 class RegisterView(generics.CreateAPIView):
     queryset = CustomUser.objects.all()
@@ -28,9 +34,14 @@ class LoginView(APIView):
                 login(request, user)
                 token, created = Token.objects.get_or_create(user=user)
                 
+                # Update last seen
+                user.last_seen = timezone.now()
+                user.save()
+                
                 return Response({
                     'token': token.key,
-                    'user': UserSerializer(user).data
+                    'user': UserSerializer(user).data,
+                    'theme': user.theme
                 })
             return Response(
                 {'error': 'Invalid credentials'}, 
@@ -46,6 +57,12 @@ class LogoutView(APIView):
             request.user.auth_token.delete()
         except:
             pass
+        
+        # Update last seen and set offline
+        request.user.is_online = False
+        request.user.last_seen = timezone.now()
+        request.user.save()
+        
         logout(request)
         return Response({'message': 'Successfully logged out'})
 
@@ -55,6 +72,41 @@ class UserProfileView(generics.RetrieveUpdateAPIView):
     
     def get_object(self):
         return self.request.user
+
+class SetThemeView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def post(self, request):
+        theme = request.data.get('theme')
+        
+        if theme not in ['light', 'dark', 'auto']:
+            return Response(
+                {'error': 'Invalid theme value. Use: light, dark, or auto'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        request.user.theme = theme
+        request.user.save()
+        
+        return Response({
+            'message': 'Theme updated successfully',
+            'theme': theme
+        })
+
+class UpdateOnlineStatusView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def post(self, request):
+        is_online = request.data.get('online', False)
+        request.user.is_online = is_online
+        request.user.last_seen = timezone.now()
+        request.user.save()
+        
+        return Response({
+            'status': 'success',
+            'online': is_online,
+            'last_seen': request.user.last_seen
+        })
 
 class UserListView(generics.ListAPIView):
     serializer_class = UserSerializer
@@ -87,21 +139,17 @@ class UserDetailView(generics.RetrieveAPIView):
         user_id = self.kwargs.get('pk')
         return get_object_or_404(CustomUser, id=user_id)
 
-class UpdateOnlineStatusView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
-    
-    def post(self, request):
-        is_online = request.data.get('online', False)
-        request.user.online_status = is_online
-        request.user.save()
-        
-        return Response({
-            'status': 'success',
-            'online': is_online
-        })
-
 @api_view(['GET'])
 @permission_classes([permissions.IsAuthenticated])
 def get_current_user(request):
     serializer = UserSerializer(request.user)
-    return Response(serializer.data)
+    return Response({
+        **serializer.data,
+        'theme': request.user.theme
+    })
+
+def home(request):
+    """Landing page for non-authenticated users"""
+    if request.user.is_authenticated:
+        return redirect('chat_home')
+    return render(request, 'home.html')

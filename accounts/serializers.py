@@ -6,14 +6,14 @@ class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = CustomUser
         fields = ['id', 'username', 'email', 'first_name', 'last_name', 
-                  'profile_picture', 'online_status', 'last_seen', 'date_joined']
+                  'profile_picture', 'is_online', 'last_seen', 'date_joined', 'theme']
         read_only_fields = ['id', 'date_joined', 'last_seen']
 
 class UserProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = CustomUser
         fields = ['id', 'username', 'email', 'first_name', 'last_name', 
-                  'profile_picture', 'online_status']
+                  'profile_picture', 'bio', 'phone_number', 'theme']
         read_only_fields = ['id', 'username', 'email']
 
 class RegisterSerializer(serializers.ModelSerializer):
