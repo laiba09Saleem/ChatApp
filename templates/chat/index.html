@@ -1,0 +1,245 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Chat{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/chat.css' %}">
+{% endblock %}
+
+{% block content %}
+<div id="chat-app" class="chat-app">
+    <!-- Sidebar -->
+    <div class="sidebar">
+        <!-- User Profile -->
+        <div class="user-profile">
+            <div class="avatar" id="profileAvatar">
+                {% if user.profile_picture %}
+                <img src="{{ user.profile_picture.url }}" alt="{{ user.username }}">
+                {% else %}
+                <div class="avatar-placeholder">{{ user.initials }}</div>
+                {% endif %}
+            </div>
+            <div class="user-info">
+                <h3>{{ user.username }}</h3>
+                <p class="user-status">
+                    <span class="status-indicator online"></span>
+                    <span id="statusText">Online</span>
+                </p>
+            </div>
+            <div class="user-actions">
+                <button class="icon-btn" id="notificationsBtn" title="Notifications">
+                    <i class="fas fa-bell"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Search -->
+        <div class="search-box">
+            <i class="fas fa-search"></i>
+            <input type="text" id="searchInput" placeholder="Search conversations...">
+        </div>
+
+        <!-- Conversations -->
+        <div class="conversations-section">
+            <div class="section-header">
+                <h4>Conversations</h4>
+                <button class="icon-btn" id="newChatBtn" title="New Chat">
+                    <i class="fas fa-plus"></i>
+                </button>
+            </div>
+            <div class="conversations-list" id="conversationsList">
+                <!-- Conversations will be loaded here -->
+            </div>
+        </div>
+
+        <!-- Footer Actions -->
+        <div class="sidebar-footer">
+            <button class="icon-btn" id="themeToggleBtn">
+                <i class="fas fa-moon"></i>
+                <span>Theme</span>
+            </button>
+            <button class="icon-btn" id="settingsBtn">
+                <i class="fas fa-cog"></i>
+                <span>Settings</span>
+            </button>
+            <button class="icon-btn" id="logoutBtn">
+                <i class="fas fa-sign-out-alt"></i>
+                <span>Logout</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Main Chat Area -->
+    <div class="chat-main">
+        <!-- Chat Header -->
+        <div class="chat-header" id="chatHeader">
+            <div class="welcome-message">
+                <h2>Welcome to Chat!</h2>
+                <p>Select a conversation or start a new chat to begin messaging</p>
+            </div>
+        </div>
+
+        <!-- Messages Area -->
+        <div class="messages-container" id="messagesContainer">
+            <div class="welcome-chat">
+                <div class="welcome-content">
+                    <i class="fas fa-comments"></i>
+                    <h2>Start Chatting</h2>
+                    <p>Select a conversation from the sidebar or create a new one</p>
+                    <div class="welcome-actions">
+                        <button class="btn btn-primary" id="startNewChatBtn">
+                            <i class="fas fa-plus"></i> New Chat
+                        </button>
+                        <button class="btn btn-secondary" id="startNewGroupBtn">
+                            <i class="fas fa-users"></i> New Group
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Message Input -->
+        <div class="message-input-area" id="messageInputArea" style="display: none;">
+            <div class="input-container">
+                <!-- File Attachment -->
+                <button class="icon-btn attach-btn" id="attachBtn" title="Attach File">
+                    <i class="fas fa-paperclip"></i>
+                </button>
+                <input type="file" id="fileInput" multiple style="display: none;">
+                
+                <!-- Emoji Picker -->
+                <button class="icon-btn emoji-btn" id="emojiBtn" title="Emoji">
+                    <i class="far fa-smile"></i>
+                </button>
+                
+                <!-- Message Input -->
+                <textarea id="messageInput" placeholder="Type a message..." rows="1"></textarea>
+                
+                <!-- Send Button -->
+                <button class="icon-btn send-btn" id="sendBtn" title="Send">
+                    <i class="fas fa-paper-plane"></i>
+                </button>
+            </div>
+            
+            <!-- AI Suggestions -->
+            <div class="ai-suggestions" id="aiSuggestions">
+                <!-- AI suggestions will appear here -->
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modals -->
+<div class="modal" id="profileModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Profile Settings</h3>
+            <button class="modal-close" id="closeProfileModal">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="modal-body">
+            <div class="profile-picture-section">
+                <div class="current-picture">
+                    {% if user.profile_picture %}
+                    <img src="{{ user.profile_picture.url }}" alt="{{ user.username }}" id="profilePicture">
+                    {% else %}
+                    <div class="avatar-large" id="profileAvatarLarge">{{ user.initials }}</div>
+                    {% endif %}
+                </div>
+                <button class="btn btn-secondary" id="changePictureBtn">
+                    <i class="fas fa-upload"></i> Change Picture
+                </button>
+                <input type="file" id="profilePictureInput" accept="image/*" style="display: none;">
+            </div>
+            
+            <form id="profileForm">
+                <div class="form-group">
+                    <label for="profileUsername">Username</label>
+                    <input type="text" id="profileUsername" value="{{ user.username }}" disabled>
+                </div>
+                
+                <div class="form-group">
+                    <label for="profileEmail">Email</label>
+                    <input type="email" id="profileEmail" value="{{ user.email }}" disabled>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="profileFirstName">First Name</label>
+                        <input type="text" id="profileFirstName" value="{{ user.first_name|default:'' }}">
+                    </div>
+                    <div class="form-group">
+                        <label for="profileLastName">Last Name</label>
+                        <input type="text" id="profileLastName" value="{{ user.last_name|default:'' }}">
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="profileBio">Bio</label>
+                    <textarea id="profileBio" rows="3" placeholder="Tell us about yourself...">{{ user.bio|default:'' }}</textarea>
+                </div>
+                
+                <div class="form-group">
+                    <label for="profilePhone">Phone Number</label>
+                    <input type="tel" id="profilePhone" value="{{ user.phone_number|default:'' }}">
+                </div>
+            </form>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" id="cancelProfileBtn">Cancel</button>
+            <button class="btn btn-primary" id="saveProfileBtn">Save Changes</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal" id="newChatModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>New Conversation</h3>
+            <button class="modal-close" id="closeNewChatModal">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <input type="text" id="userSearchInput" placeholder="Search users by name or email...">
+            </div>
+            
+            <div class="users-list" id="usersList">
+                <!-- Users will be loaded here -->
+            </div>
+            
+            <div class="form-group" id="groupOptions" style="display: none;">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="isGroupCheckbox">
+                    <span>Create as group chat</span>
+                </label>
+                <div class="form-group" id="groupNameField" style="display: none;">
+                    <input type="text" id="groupNameInput" placeholder="Group name (optional)">
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" id="cancelNewChatBtn">Cancel</button>
+            <button class="btn btn-primary" id="createChatBtn" disabled>
+                <i class="fas fa-plus"></i> Create Chat
+            </button>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/chat.js' %}"></script>
+<script>
+    // Initialize chat application
+    document.addEventListener('DOMContentLoaded', function() {
+        const chatApp = new ChatApp();
+        chatApp.init();
+        window.chatApp = chatApp;
+    });
+</script>
+{% endblock %}
