@@ -7,6 +7,7 @@ class Conversation(models.Model):
     name = models.CharField(max_length=255, blank=True)
     participants = models.ManyToManyField(settings.AUTH_USER_MODEL, related_name='conversations')
     is_group = models.BooleanField(default=False)
+    ai_enabled = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
@@ -15,6 +16,10 @@ class Conversation(models.Model):
     
     def __str__(self):
         return self.name or f"Conversation {self.id}"
+    
+    @property
+    def is_direct_chat(self):
+        return not self.is_group and self.participants.count() == 2
 
 class Message(models.Model):
     MESSAGE_TYPES = [
@@ -30,22 +35,40 @@ class Message(models.Model):
     sender = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     content = models.TextField()
     message_type = models.CharField(max_length=10, choices=MESSAGE_TYPES, default='text')
-    file = models.FileField(upload_to='chat_files/', null=True, blank=True)
+    file = models.FileField(upload_to='chat_files/%Y/%m/%d/', null=True, blank=True)
     timestamp = models.DateTimeField(auto_now_add=True)
     read_by = models.ManyToManyField(settings.AUTH_USER_MODEL, related_name='read_messages', blank=True)
     
     class Meta:
         ordering = ['timestamp']
+        indexes = [
+            models.Index(fields=['conversation', 'timestamp']),
+            models.Index(fields=['sender', 'timestamp']),
+        ]
     
     def __str__(self):
-        return f"{self.sender}: {self.content[:50]}"
+        return f"{self.sender.username}: {self.content[:50]}"
+    
+    @property
+    def is_read(self):
+        return self.read_by.count() > 0
 
-class AIAssistant(models.Model):
-    name = models.CharField(max_length=100)
-    description = models.TextField()
-    is_active = models.BooleanField(default=True)
-    model_name = models.CharField(max_length=100)
-    created_at = models.DateTimeField(auto_now_add=True)
+class UserSettings(models.Model):
+    THEME_CHOICES = [
+        ('light', 'Light'),
+        ('dark', 'Dark'),
+        ('auto', 'Auto'),
+    ]
+    
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='user_settings')
+    theme = models.CharField(max_length=10, choices=THEME_CHOICES, default='auto')
+    notifications_enabled = models.BooleanField(default=True)
+    sound_enabled = models.BooleanField(default=True)
+    last_seen = models.DateTimeField(auto_now=True)
     
     def __str__(self):
-        return self.name
+        return f"Settings for {self.user.username}"
+    
+    class Meta:
+        verbose_name = 'User Settings'
+        verbose_name_plural = 'User Settings'
