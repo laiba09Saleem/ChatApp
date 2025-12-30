@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Conversation, Message, AIAssistant
+from .models import Conversation, Message, UserSettings
 from accounts.serializers import UserSerializer
 
 class MessageSerializer(serializers.ModelSerializer):
@@ -26,7 +26,7 @@ class ConversationSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = Conversation
-        fields = ['id', 'name', 'participants', 'is_group', 
+        fields = ['id', 'name', 'participants', 'is_group', 'ai_enabled',
                   'created_at', 'updated_at', 'last_message', 'unread_count']
     
     def get_last_message(self, obj):
@@ -53,13 +53,12 @@ class CreateConversationSerializer(serializers.Serializer):
     name = serializers.CharField(required=False, allow_blank=True)
     is_group = serializers.BooleanField(default=False)
 
-class AIAssistantSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = AIAssistant
-        fields = ['id', 'name', 'description', 'is_active', 
-                  'model_name', 'created_at']
-
 class MarkAsReadSerializer(serializers.Serializer):
     message_ids = serializers.ListField(
         child=serializers.UUIDField()
     )
+
+class UserSettingsSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = UserSettings
+        fields = ['theme', 'notifications_enabled', 'sound_enabled']
