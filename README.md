@@ -677,5 +677,3 @@ DATABASE_URL=postgresql://...  # For PostgreSQL
 - Monitor database performance
 - Set up error tracking (Sentry)
 - Regular backups
-```
-
