@@ -3,16 +3,16 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.db.models import Q, Count, Max
-from django.shortcuts import get_object_or_404
-from django.shortcuts import render
+from django.shortcuts import get_object_or_404, render
 from django.contrib.auth.decorators import login_required
+from django.utils import timezone
 
 from accounts.serializers import UserSerializer
-from .models import Conversation, Message, AIAssistant
+from .models import Conversation, Message, UserSettings
 from .serializers import (
     ConversationSerializer, MessageSerializer, 
-    CreateConversationSerializer, AIAssistantSerializer,
-    MarkAsReadSerializer
+    CreateConversationSerializer, MarkAsReadSerializer,
+    UserSettingsSerializer
 )
 from accounts.models import CustomUser
 import openai
@@ -70,7 +70,8 @@ class ConversationViewSet(viewsets.ModelViewSet):
             # Create new conversation
             conversation = Conversation.objects.create(
                 name=name,
-                is_group=is_group
+                is_group=is_group,
+                ai_enabled=is_group  # Enable AI by default for groups
             )
             
             # Add participants
@@ -85,72 +86,35 @@ class ConversationViewSet(viewsets.ModelViewSet):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
     @action(detail=True, methods=['post'])
-    def add_participant(self, request, pk=None):
+    def toggle_ai(self, request, pk=None):
         conversation = self.get_object()
-        user_id = request.data.get('user_id')
+        enabled = request.data.get('enabled', False)
         
-        if not user_id:
-            return Response(
-                {'error': 'user_id is required'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+        conversation.ai_enabled = enabled
+        conversation.save()
         
-        try:
-            user = CustomUser.objects.get(id=user_id)
-            conversation.participants.add(user)
-            return Response({'status': 'participant added'})
-        except CustomUser.DoesNotExist:
-            return Response(
-                {'error': 'User not found'},
-                status=status.HTTP_404_NOT_FOUND
-            )
-    
-    @action(detail=True, methods=['post'])
-    def remove_participant(self, request, pk=None):
-        conversation = self.get_object()
-        user_id = request.data.get('user_id')
-        
-        if not user_id:
-            return Response(
-                {'error': 'user_id is required'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        try:
-            user = CustomUser.objects.get(id=user_id)
-            
-            # Don't allow removing the last participant
-            if conversation.participants.count() <= 1:
-                return Response(
-                    {'error': 'Cannot remove the last participant'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-            
-            conversation.participants.remove(user)
-            return Response({'status': 'participant removed'})
-        except CustomUser.DoesNotExist:
-            return Response(
-                {'error': 'User not found'},
-                status=status.HTTP_404_NOT_FOUND
-            )
+        return Response({
+            'status': 'success',
+            'ai_enabled': enabled
+        })
     
     @action(detail=True, methods=['get'])
     def messages(self, request, pk=None):
         conversation = self.get_object()
         
         # Mark messages as read
-        conversation.messages.exclude(read_by=request.user).update(
-            read_by=request.user
-        )
+        unread_messages = conversation.messages.exclude(read_by=request.user)
+        for message in unread_messages:
+            message.read_by.add(request.user)
         
         messages = conversation.messages.all().order_by('timestamp')
         page = self.paginate_queryset(messages)
         
         if page is not None:
-            serializer = MessageSerializer(page, many=True)
+            serializer = MessageSerializer(page, many=True, context={'request': request})
             return self.get_paginated_response(serializer.data)
         
-        serializer = MessageSerializer(messages, many=True)
+        serializer = MessageSerializer(messages, many=True, context={'request': request})
         return Response(serializer.data)
     
     @action(detail=True, methods=['post'])
@@ -164,18 +128,32 @@ class ConversationViewSet(viewsets.ModelViewSet):
             )
         
         try:
+            import openai
+            from core.settings import OPENAI_API_KEY
+            
+            if not OPENAI_API_KEY:
+                return Response(
+                    {'error': 'OpenAI API key not configured'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            openai.api_key = OPENAI_API_KEY
+            
             response = openai.ChatCompletion.create(
                 model="gpt-3.5-turbo",
                 messages=[
-                    {"role": "system", "content": "You are a helpful assistant that suggests chat replies. Provide 3-5 short, friendly reply suggestions."},
+                    {"role": "system", "content": "You are a helpful assistant that suggests chat replies. Provide 3-5 short, friendly reply suggestions as a bullet list."},
                     {"role": "user", "content": f"Suggest replies for: '{message}'"}
                 ],
                 max_tokens=100,
                 temperature=0.7
             )
-            suggestions = response.choices[0].message.content.split('\n')
-            suggestions = [s.strip() for s in suggestions if s.strip()]
+            
+            suggestions_text = response.choices[0].message.content
+            suggestions = [s.strip('-• ') for s in suggestions_text.split('\n') if s.strip()]
+            
             return Response({'suggestions': suggestions})
+            
         except Exception as e:
             return Response(
                 {'error': str(e)},
@@ -201,9 +179,12 @@ class MessageViewSet(viewsets.ModelViewSet):
     
     def perform_create(self, serializer):
         message = serializer.save()
-        
         # Add sender to read_by
         message.read_by.add(self.request.user)
+        
+        # Update conversation's updated_at
+        message.conversation.updated_at = timezone.now()
+        message.conversation.save()
     
     @action(detail=False, methods=['post'])
     def mark_as_read(self, request):
@@ -231,10 +212,16 @@ class MessageViewSet(viewsets.ModelViewSet):
         
         return Response({'unread_count': count})
 
-class AIAssistantViewSet(viewsets.ModelViewSet):
-    serializer_class = AIAssistantSerializer
+class UserSettingsViewSet(viewsets.ModelViewSet):
+    serializer_class = UserSettingsSerializer
     permission_classes = [permissions.IsAuthenticated]
-    queryset = AIAssistant.objects.all()
+    
+    def get_queryset(self):
+        return UserSettings.objects.filter(user=self.request.user)
+    
+    def get_object(self):
+        obj, created = UserSettings.objects.get_or_create(user=self.request.user)
+        return obj
 
 class SearchMessagesView(APIView):
     permission_classes = [permissions.IsAuthenticated]
@@ -276,14 +263,18 @@ class RecentContactsView(APIView):
         serializer = UserSerializer(users, many=True)
         
         return Response(serializer.data)
-    
+
 @login_required
 def chat_home(request):
     """Render the main chat interface"""
-    return render(request, 'chat/index.html')
+    context = {
+        'user': request.user,
+        'theme': request.user.theme
+    }
+    return render(request, 'chat/index.html', context)
 
 def home(request):
     """Landing page for non-authenticated users"""
     if request.user.is_authenticated:
-        return render(request, 'chat/index.html')
+        return chat_home(request)
     return render(request, 'home.html')
