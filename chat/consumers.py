@@ -1,4 +1,5 @@
 import json
+import asyncio
 from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
 from django.contrib.auth import get_user_model
@@ -19,15 +20,27 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 self.room_group_name,
                 self.channel_name
             )
+            
             await self.accept()
             
             # Update user online status
             await self.update_user_status(True)
+            
+            # Notify others about user joining
+            await self.channel_layer.group_send(
+                self.room_group_name,
+                {
+                    'type': 'user_status',
+                    'user_id': self.user.id,
+                    'username': self.user.username,
+                    'status': 'online'
+                }
+            )
         else:
-            await self.close()
+            await self.close(code=4001)
 
     async def disconnect(self, close_code):
-        if self.user.is_authenticated:
+        if hasattr(self, 'user') and self.user.is_authenticated:
             # Leave room group
             await self.channel_layer.group_discard(
                 self.room_group_name,
@@ -36,53 +49,98 @@ class ChatConsumer(AsyncWebsocketConsumer):
             
             # Update user online status
             await self.update_user_status(False)
+            
+            # Notify others about user leaving
+            await self.channel_layer.group_send(
+                self.room_group_name,
+                {
+                    'type': 'user_status',
+                    'user_id': self.user.id,
+                    'username': self.user.username,
+                    'status': 'offline'
+                }
+            )
 
     async def receive(self, text_data):
-        text_data_json = json.loads(text_data)
-        message_type = text_data_json.get('type', 'chat_message')
-        
-        if message_type == 'chat_message':
-            content = text_data_json['content']
-            message = await self.save_message(content)
+        try:
+            text_data_json = json.loads(text_data)
+            message_type = text_data_json.get('type', 'chat_message')
             
-            # Send message to room group
-            await self.channel_layer.group_send(
-                self.room_group_name,
-                {
-                    'type': 'chat_message',
-                    'message': message,
-                    'sender': self.user.username
-                }
-            )
-            
-            # Check if AI response is needed
-            await self.check_ai_response(content, message['id'])
-            
-        elif message_type == 'typing':
-            await self.channel_layer.group_send(
-                self.room_group_name,
-                {
-                    'type': 'typing_indicator',
-                    'user': self.user.username,
-                    'is_typing': text_data_json['is_typing']
-                }
-            )
+            if message_type == 'chat_message':
+                content = text_data_json.get('content', '').strip()
+                if content:
+                    message = await self.save_message(content)
+                    
+                    # Send message to room group
+                    await self.channel_layer.group_send(
+                        self.room_group_name,
+                        {
+                            'type': 'chat_message',
+                            'message': message,
+                            'sender_id': self.user.id,
+                            'sender_username': self.user.username
+                        }
+                    )
+                    
+                    # Check for AI response
+                    await self.check_ai_response(content, message['id'])
+                    
+            elif message_type == 'typing':
+                is_typing = text_data_json.get('is_typing', False)
+                await self.channel_layer.group_send(
+                    self.room_group_name,
+                    {
+                        'type': 'typing_indicator',
+                        'user_id': self.user.id,
+                        'username': self.user.username,
+                        'is_typing': is_typing
+                    }
+                )
+                
+            elif message_type == 'read_receipt':
+                message_id = text_data_json.get('message_id')
+                if message_id:
+                    await self.mark_as_read(message_id)
+                    
+        except json.JSONDecodeError:
+            await self.send(text_data=json.dumps({
+                'type': 'error',
+                'error': 'Invalid JSON format'
+            }))
+        except Exception as e:
+            await self.send(text_data=json.dumps({
+                'type': 'error',
+                'error': str(e)
+            }))
 
     async def chat_message(self, event):
-        message = event['message']
-        
-        # Send message to WebSocket
         await self.send(text_data=json.dumps({
             'type': 'chat_message',
-            'message': message,
-            'sender': event['sender']
+            'message': event['message'],
+            'sender': {
+                'id': event['sender_id'],
+                'username': event['sender_username']
+            }
         }))
 
     async def typing_indicator(self, event):
         await self.send(text_data=json.dumps({
             'type': 'typing',
-            'user': event['user'],
+            'user': {
+                'id': event['user_id'],
+                'username': event['username']
+            },
             'is_typing': event['is_typing']
+        }))
+
+    async def user_status(self, event):
+        await self.send(text_data=json.dumps({
+            'type': 'user_status',
+            'user': {
+                'id': event['user_id'],
+                'username': event['username']
+            },
+            'status': event['status']
         }))
 
     @database_sync_to_async
@@ -98,6 +156,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
         return {
             'id': str(message.id),
             'content': message.content,
+            'message_type': message.message_type,
             'timestamp': message.timestamp.isoformat(),
             'sender': {
                 'id': message.sender.id,
@@ -107,14 +166,24 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
     @database_sync_to_async
     def update_user_status(self, is_online):
-        self.user.online_status = is_online
+        self.user.is_online = is_online
         self.user.save()
 
+    @database_sync_to_async
+    def mark_as_read(self, message_id):
+        try:
+            message = Message.objects.get(id=message_id)
+            if self.user not in message.read_by.all():
+                message.read_by.add(self.user)
+        except Message.DoesNotExist:
+            pass
+
     async def check_ai_response(self, user_message, message_id):
-        # Check if AI should respond
+        # Check if conversation has AI enabled
         conversation = await self.get_conversation()
         
-        if conversation.is_group and await self.has_ai_participant():
+        if conversation.ai_enabled:
+            # Generate AI response
             ai_response = await self.generate_ai_response(user_message)
             
             if ai_response:
@@ -126,7 +195,8 @@ class ChatConsumer(AsyncWebsocketConsumer):
                     {
                         'type': 'chat_message',
                         'message': message,
-                        'sender': 'AI Assistant'
+                        'sender_id': 0,  # AI user ID
+                        'sender_username': 'AI Assistant'
                     }
                 )
 
@@ -134,21 +204,24 @@ class ChatConsumer(AsyncWebsocketConsumer):
     def get_conversation(self):
         return Conversation.objects.get(id=self.conversation_id)
 
-    @database_sync_to_async
-    def has_ai_participant(self):
-        # Check if AI is a participant in the conversation
-        return self.conversation.ai_assistants.exists()
-
     async def generate_ai_response(self, user_message):
-        # Generate AI response using OpenAI
         try:
-            response = openai.ChatCompletion.create(
-                model="gpt-4",
+            from core.settings import OPENAI_API_KEY
+            if not OPENAI_API_KEY:
+                return None
+                
+            import openai
+            openai.api_key = OPENAI_API_KEY
+            
+            response = await asyncio.to_thread(
+                openai.ChatCompletion.create,
+                model="gpt-3.5-turbo",
                 messages=[
-                    {"role": "system", "content": "You are a helpful assistant in a chat application."},
+                    {"role": "system", "content": "You are a helpful assistant in a chat application. Keep responses concise and friendly."},
                     {"role": "user", "content": user_message}
                 ],
-                max_tokens=500
+                max_tokens=150,
+                temperature=0.7
             )
             return response.choices[0].message.content
         except Exception as e:
@@ -158,7 +231,18 @@ class ChatConsumer(AsyncWebsocketConsumer):
     @database_sync_to_async
     def save_ai_message(self, content):
         conversation = Conversation.objects.get(id=self.conversation_id)
-        ai_user = User.objects.get(username='ai_assistant')
+        
+        # Get or create AI user
+        ai_user, created = User.objects.get_or_create(
+            username='ai_assistant',
+            defaults={
+                'email': 'ai@chat.com',
+                'first_name': 'AI',
+                'last_name': 'Assistant',
+                'is_active': True,
+                'is_staff': False
+            }
+        )
         
         message = Message.objects.create(
             conversation=conversation,
@@ -170,9 +254,10 @@ class ChatConsumer(AsyncWebsocketConsumer):
         return {
             'id': str(message.id),
             'content': message.content,
+            'message_type': message.message_type,
             'timestamp': message.timestamp.isoformat(),
             'sender': {
-                'id': message.sender.id,
+                'id': ai_user.id,
                 'username': 'AI Assistant'
             }
         }
