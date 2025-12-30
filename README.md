@@ -34,25 +34,7 @@ A modern, fully-featured real-time chat application built with Django and Vue.js
 - Push notifications
 - Chat translation
 - End-to-end encryption
-
-## Application Screenshots
-
-### 1. Landing Page
-![Landing Page](https://images.unsplash.com/photo-1611605698325-8b1569810432?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80)
-*Beautiful landing page with clear call-to-action*
-
-### 2. Chat Interface (Light Mode)
-![Chat Light Mode](https://images.unsplash.com/photo-1577563908411-5077b6dc7624?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80)
-*Clean, modern chat interface with conversation sidebar*
-
-### 3. Chat Interface (Dark Mode)
-![Chat Dark Mode](https://images.unsplash.com/photo-1516321497487-e288fb19713f?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80)
-*Easy on the eyes dark mode for nighttime chatting*
-
-### 4. User Profile
-![User Profile](https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?ixlib=rb-4.0.3&auto=format&fit=crop&w-800&q=80)
-*Complete user profile with editable information*
-
+  
 ## Technology Stack
 
 ### Backend
