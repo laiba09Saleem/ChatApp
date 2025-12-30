@@ -5,7 +5,7 @@ from . import views
 router = DefaultRouter()
 router.register(r'conversations', views.ConversationViewSet, basename='conversation')
 router.register(r'messages', views.MessageViewSet, basename='message')
-router.register(r'ai-assistants', views.AIAssistantViewSet, basename='ai-assistant')
+router.register(r'settings', views.UserSettingsViewSet, basename='settings')
 
 urlpatterns = [
     path('', include(router.urls)),
