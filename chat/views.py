@@ -8,70 +8,55 @@ from django.contrib.auth.decorators import login_required
 from django.utils import timezone
 
 from accounts.serializers import UserSerializer
-from .models import Conversation, Message, UserSettings
+from .models import Conversation, Message
 from .serializers import (
     ConversationSerializer, MessageSerializer, 
-    CreateConversationSerializer, MarkAsReadSerializer,
-    UserSettingsSerializer
+    CreateConversationSerializer, MarkAsReadSerializer
 )
 from accounts.models import CustomUser
-import openai
-from datetime import datetime, timedelta
 
+# Conversation ViewSet
 class ConversationViewSet(viewsets.ModelViewSet):
     serializer_class = ConversationSerializer
     permission_classes = [permissions.IsAuthenticated]
-    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
-    search_fields = ['name', 'participants__username', 'participants__email']
-    ordering_fields = ['updated_at', 'created_at']
     
     def get_queryset(self):
         user = self.request.user
-        return Conversation.objects.filter(participants=user)\
+        conversations = Conversation.objects.filter(participants=user)\
             .annotate(
-                last_message_time=Max('messages__timestamp')
+                last_message_time=Max('messages__timestamp'),
+                unread_count=Count('messages', filter=~Q(messages__read_by=user))
             )\
-            .order_by('-last_message_time', '-updated_at')
+            .order_by('-last_message_time')
+        
+        return conversations
     
     def get_serializer_context(self):
         context = super().get_serializer_context()
         context['request'] = self.request
         return context
     
-    def create(self, request):
+    def list(self, request):
+        queryset = self.get_queryset()
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
+    
+    @action(detail=False, methods=['post'])
+    def create_chat(self, request):
         serializer = CreateConversationSerializer(data=request.data)
         if serializer.is_valid():
             participant_ids = serializer.validated_data['participant_ids']
             is_group = serializer.validated_data['is_group']
             name = serializer.validated_data.get('name', '')
             
-            # Get participants
-            participants = CustomUser.objects.filter(id__in=participant_ids)
+            # Get participants excluding current user
+            participants = CustomUser.objects.filter(id__in=participant_ids).exclude(id=request.user.id)
             
-            # Check if conversation already exists (for 1-on-1 chats)
-            if not is_group and len(participant_ids) == 1:
-                existing_conversation = Conversation.objects.filter(
-                    participants=request.user,
-                    is_group=False
-                ).filter(
-                    participants__in=participant_ids
-                ).annotate(
-                    participant_count=Count('participants')
-                ).filter(
-                    participant_count=2
-                ).first()
-                
-                if existing_conversation:
-                    return Response(
-                        ConversationSerializer(existing_conversation, context={'request': request}).data,
-                        status=status.HTTP_200_OK
-                    )
-            
-            # Create new conversation
+            # Create conversation
             conversation = Conversation.objects.create(
                 name=name,
                 is_group=is_group,
-                ai_enabled=is_group  # Enable AI by default for groups
+                ai_enabled=is_group
             )
             
             # Add participants
@@ -85,19 +70,6 @@ class ConversationViewSet(viewsets.ModelViewSet):
             )
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
-    @action(detail=True, methods=['post'])
-    def toggle_ai(self, request, pk=None):
-        conversation = self.get_object()
-        enabled = request.data.get('enabled', False)
-        
-        conversation.ai_enabled = enabled
-        conversation.save()
-        
-        return Response({
-            'status': 'success',
-            'ai_enabled': enabled
-        })
-    
     @action(detail=True, methods=['get'])
     def messages(self, request, pk=None):
         conversation = self.get_object()
@@ -108,58 +80,20 @@ class ConversationViewSet(viewsets.ModelViewSet):
             message.read_by.add(request.user)
         
         messages = conversation.messages.all().order_by('timestamp')
-        page = self.paginate_queryset(messages)
-        
-        if page is not None:
-            serializer = MessageSerializer(page, many=True, context={'request': request})
-            return self.get_paginated_response(serializer.data)
-        
         serializer = MessageSerializer(messages, many=True, context={'request': request})
         return Response(serializer.data)
     
     @action(detail=True, methods=['post'])
-    def ai_suggestions(self, request, pk=None):
-        message = request.data.get('message')
+    def mark_read(self, request, pk=None):
+        conversation = self.get_object()
+        unread_messages = conversation.messages.exclude(read_by=request.user)
         
-        if not message:
-            return Response(
-                {'error': 'Message is required'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+        for message in unread_messages:
+            message.read_by.add(request.user)
         
-        try:
-            import openai
-            from core.settings import OPENAI_API_KEY
-            
-            if not OPENAI_API_KEY:
-                return Response(
-                    {'error': 'OpenAI API key not configured'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-            
-            openai.api_key = OPENAI_API_KEY
-            
-            response = openai.ChatCompletion.create(
-                model="gpt-3.5-turbo",
-                messages=[
-                    {"role": "system", "content": "You are a helpful assistant that suggests chat replies. Provide 3-5 short, friendly reply suggestions as a bullet list."},
-                    {"role": "user", "content": f"Suggest replies for: '{message}'"}
-                ],
-                max_tokens=100,
-                temperature=0.7
-            )
-            
-            suggestions_text = response.choices[0].message.content
-            suggestions = [s.strip('-• ') for s in suggestions_text.split('\n') if s.strip()]
-            
-            return Response({'suggestions': suggestions})
-            
-        except Exception as e:
-            return Response(
-                {'error': str(e)},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+        return Response({'status': 'conversation marked as read'})
 
+# Message ViewSet
 class MessageViewSet(viewsets.ModelViewSet):
     serializer_class = MessageSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -212,17 +146,45 @@ class MessageViewSet(viewsets.ModelViewSet):
         
         return Response({'unread_count': count})
 
-class UserSettingsViewSet(viewsets.ModelViewSet):
-    serializer_class = UserSettingsSerializer
+# Search Users View
+class SearchUsersView(APIView):
     permission_classes = [permissions.IsAuthenticated]
     
-    def get_queryset(self):
-        return UserSettings.objects.filter(user=self.request.user)
-    
-    def get_object(self):
-        obj, created = UserSettings.objects.get_or_create(user=self.request.user)
-        return obj
+    def get(self, request):
+        query = request.query_params.get('q', '')
+        
+        users = CustomUser.objects.exclude(id=request.user.id)
+        
+        if query:
+            users = users.filter(
+                Q(username__icontains=query) |
+                Q(email__icontains=query) |
+                Q(first_name__icontains=query) |
+                Q(last_name__icontains=query)
+            )
+        
+        users = users[:20]  # Limit results
+        serializer = UserSerializer(users, many=True)
+        return Response(serializer.data)
 
+# Recent Contacts View
+class RecentContactsView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get(self, request):
+        # Get users you've recently messaged with
+        recent_messages = Message.objects.filter(
+            Q(conversation__participants=request.user) &
+            ~Q(sender=request.user)
+        ).order_by('-timestamp').values('sender').distinct()[:10]
+        
+        user_ids = [msg['sender'] for msg in recent_messages]
+        users = CustomUser.objects.filter(id__in=user_ids)
+        serializer = UserSerializer(users, many=True)
+        
+        return Response(serializer.data)
+
+# Search Messages View
 class SearchMessagesView(APIView):
     permission_classes = [permissions.IsAuthenticated]
     
@@ -248,22 +210,33 @@ class SearchMessagesView(APIView):
         serializer = MessageSerializer(messages, many=True)
         return Response(serializer.data)
 
-class RecentContactsView(APIView):
+# AI Suggestions View
+class AISuggestionsView(APIView):
     permission_classes = [permissions.IsAuthenticated]
     
-    def get(self, request):
-        # Get users you've recently messaged with
-        recent_messages = Message.objects.filter(
-            Q(conversation__participants=request.user) &
-            ~Q(sender=request.user)
-        ).order_by('-timestamp').values('sender').distinct()[:10]
+    def post(self, request):
+        message = request.data.get('message')
+        conversation_id = request.data.get('conversation_id')
         
-        user_ids = [msg['sender'] for msg in recent_messages]
-        users = CustomUser.objects.filter(id__in=user_ids)
-        serializer = UserSerializer(users, many=True)
+        if not message:
+            return Response(
+                {'error': 'Message is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
         
-        return Response(serializer.data)
+        # For now, return mock suggestions
+        # In production, integrate with OpenAI API
+        suggestions = [
+            "That's interesting!",
+            "Can you tell me more?",
+            "I agree with you",
+            "What do you think about that?",
+            "Let me know if you need help with anything else."
+        ]
+        
+        return Response({'suggestions': suggestions})
 
+# Template Views
 @login_required
 def chat_home(request):
     """Render the main chat interface"""

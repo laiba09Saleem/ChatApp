@@ -1,19 +1,15 @@
 from rest_framework import serializers
-from .models import Conversation, Message, UserSettings
+from .models import Conversation, Message
 from accounts.serializers import UserSerializer
 
 class MessageSerializer(serializers.ModelSerializer):
     sender = UserSerializer(read_only=True)
-    read_by_users = serializers.SerializerMethodField()
     
     class Meta:
         model = Message
         fields = ['id', 'conversation', 'sender', 'content', 
-                  'message_type', 'file', 'timestamp', 'read_by', 'read_by_users']
+                  'message_type', 'file', 'timestamp', 'read_by']
         read_only_fields = ['id', 'timestamp', 'sender']
-    
-    def get_read_by_users(self, obj):
-        return UserSerializer(obj.read_by.all(), many=True).data
     
     def create(self, validated_data):
         validated_data['sender'] = self.context['request'].user
@@ -57,8 +53,3 @@ class MarkAsReadSerializer(serializers.Serializer):
     message_ids = serializers.ListField(
         child=serializers.UUIDField()
     )
-
-class UserSettingsSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = UserSettings
-        fields = ['theme', 'notifications_enabled', 'sound_enabled']

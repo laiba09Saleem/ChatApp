@@ -41,10 +41,6 @@ class Message(models.Model):
     
     class Meta:
         ordering = ['timestamp']
-        indexes = [
-            models.Index(fields=['conversation', 'timestamp']),
-            models.Index(fields=['sender', 'timestamp']),
-        ]
     
     def __str__(self):
         return f"{self.sender.username}: {self.content[:50]}"
@@ -52,23 +48,3 @@ class Message(models.Model):
     @property
     def is_read(self):
         return self.read_by.count() > 0
-
-class UserSettings(models.Model):
-    THEME_CHOICES = [
-        ('light', 'Light'),
-        ('dark', 'Dark'),
-        ('auto', 'Auto'),
-    ]
-    
-    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='user_settings')
-    theme = models.CharField(max_length=10, choices=THEME_CHOICES, default='auto')
-    notifications_enabled = models.BooleanField(default=True)
-    sound_enabled = models.BooleanField(default=True)
-    last_seen = models.DateTimeField(auto_now=True)
-    
-    def __str__(self):
-        return f"Settings for {self.user.username}"
-    
-    class Meta:
-        verbose_name = 'User Settings'
-        verbose_name_plural = 'User Settings'
