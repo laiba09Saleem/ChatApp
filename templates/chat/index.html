@@ -1,1008 +1,245 @@
-<!DOCTYPE html>
+{% extends "base.html" %}
 {% load static %}
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Chat | Dashboard</title>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/vue@3/dist/vue.global.js"></script>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
-        :root {
-            --primary-color: #007bff;
-            --secondary-color: #6c757d;
-            --success-color: #28a745;
-            --danger-color: #dc3545;
-            --warning-color: #ffc107;
-            --info-color: #17a2b8;
-            --light-color: #f8f9fa;
-            --dark-color: #343a40;
-            --sidebar-width: 300px;
-            --header-height: 60px;
-        }
-        
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: #f0f2f5;
-            height: 100vh;
-            overflow: hidden;
-        }
-        
-        .app-container {
-            display: flex;
-            height: 100vh;
-        }
-        
-        /* Sidebar Styles */
-        .sidebar {
-            width: var(--sidebar-width);
-            background: white;
-            border-right: 1px solid #e0e0e0;
-            display: flex;
-            flex-direction: column;
-            transition: all 0.3s ease;
-        }
-        
-        .sidebar-header {
-            padding: 20px;
-            border-bottom: 1px solid #e0e0e0;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-        }
-        
-        .user-profile {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-        
-        .avatar {
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            background: var(--primary-color);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            font-weight: bold;
-            overflow: hidden;
-        }
-        
-        .avatar img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
-        
-        .user-info h3 {
-            font-size: 1rem;
-            margin: 0;
-        }
-        
-        .user-info p {
-            font-size: 0.8rem;
-            color: var(--secondary-color);
-            margin: 0;
-        }
-        
-        .status-indicator {
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-            background: var(--success-color);
-            margin-left: auto;
-        }
-        
-        .search-box {
-            padding: 15px;
-            border-bottom: 1px solid #e0e0e0;
-        }
-        
-        .search-input {
-            width: 100%;
-            padding: 10px 15px;
-            border: 1px solid #ddd;
-            border-radius: 20px;
-            outline: none;
-            font-size: 0.9rem;
-        }
-        
-        .search-input:focus {
-            border-color: var(--primary-color);
-        }
-        
-        .conversations-list {
-            flex: 1;
-            overflow-y: auto;
-            padding: 10px 0;
-        }
-        
-        .conversation-item {
-            padding: 15px 20px;
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            cursor: pointer;
-            transition: background 0.2s ease;
-            border-left: 3px solid transparent;
-        }
-        
-        .conversation-item:hover {
-            background: #f8f9fa;
-        }
-        
-        .conversation-item.active {
-            background: #e3f2fd;
-            border-left-color: var(--primary-color);
-        }
-        
-        .conversation-avatar {
-            width: 45px;
-            height: 45px;
-            border-radius: 50%;
-            background: var(--info-color);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            font-weight: bold;
-            position: relative;
-        }
-        
-        .conversation-info {
-            flex: 1;
-            min-width: 0;
-        }
-        
-        .conversation-info h4 {
-            font-size: 0.95rem;
-            margin: 0 0 5px 0;
-            display: flex;
-            justify-content: space-between;
-        }
-        
-        .conversation-info p {
-            font-size: 0.85rem;
-            color: var(--secondary-color);
-            margin: 0;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-        
-        .conversation-time {
-            font-size: 0.75rem;
-            color: #999;
-        }
-        
-        .unread-badge {
-            background: var(--primary-color);
-            color: white;
-            font-size: 0.7rem;
-            padding: 2px 6px;
-            border-radius: 10px;
-            margin-left: auto;
-        }
-        
-        .sidebar-footer {
-            padding: 15px 20px;
-            border-top: 1px solid #e0e0e0;
-            display: flex;
-            justify-content: space-around;
-        }
-        
-        .sidebar-footer button {
-            background: none;
-            border: none;
-            font-size: 1.2rem;
-            color: var(--secondary-color);
-            cursor: pointer;
-            padding: 8px;
-            border-radius: 8px;
-            transition: all 0.2s ease;
-        }
-        
-        .sidebar-footer button:hover {
-            background: #f8f9fa;
-            color: var(--primary-color);
-        }
-        
-        /* Main Chat Area */
-        .chat-area {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-        }
-        
-        .chat-header {
-            height: var(--header-height);
-            background: white;
-            border-bottom: 1px solid #e0e0e0;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 0 20px;
-        }
-        
-        .chat-partner {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-        
-        .chat-actions {
-            display: flex;
-            gap: 15px;
-        }
-        
-        .chat-actions button {
-            background: none;
-            border: none;
-            font-size: 1.2rem;
-            color: var(--secondary-color);
-            cursor: pointer;
-            padding: 8px;
-            border-radius: 8px;
-            transition: all 0.2s ease;
-        }
-        
-        .chat-actions button:hover {
-            background: #f8f9fa;
-            color: var(--primary-color);
-        }
-        
-        .messages-container {
-            flex: 1;
-            padding: 20px;
-            overflow-y: auto;
-            background: #f8f9fa;
-            display: flex;
-            flex-direction: column;
-            gap: 15px;
-        }
-        
-        .message {
-            max-width: 70%;
-            padding: 12px 16px;
-            border-radius: 18px;
-            position: relative;
-            display: flex;
-            flex-direction: column;
-            animation: fadeIn 0.3s ease;
-        }
-        
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        
-        .message.sent {
-            align-self: flex-end;
-            background: var(--primary-color);
-            color: white;
-            border-bottom-right-radius: 5px;
-        }
-        
-        .message.received {
-            align-self: flex-start;
-            background: white;
-            color: var(--dark-color);
-            border-bottom-left-radius: 5px;
-            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
-        }
-        
-        .message.ai {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-        }
-        
-        .message-content {
-            font-size: 0.95rem;
-            line-height: 1.4;
-        }
-        
-        .message-time {
-            font-size: 0.75rem;
-            opacity: 0.8;
-            margin-top: 5px;
-            text-align: right;
-        }
-        
-        .typing-indicator {
-            display: flex;
-            align-items: center;
-            gap: 5px;
-            padding: 10px 20px;
-            font-size: 0.85rem;
-            color: var(--secondary-color);
-            font-style: italic;
-        }
-        
-        .typing-dots {
-            display: flex;
-            gap: 3px;
-        }
-        
-        .typing-dots span {
-            width: 6px;
-            height: 6px;
-            border-radius: 50%;
-            background: var(--secondary-color);
-            animation: typing 1.4s infinite;
-        }
-        
-        .typing-dots span:nth-child(2) { animation-delay: 0.2s; }
-        .typing-dots span:nth-child(3) { animation-delay: 0.4s; }
-        
-        @keyframes typing {
-            0%, 60%, 100% { transform: translateY(0); }
-            30% { transform: translateY(-5px); }
-        }
-        
-        .message-input-area {
-            padding: 20px;
-            background: white;
-            border-top: 1px solid #e0e0e0;
-        }
-        
-        .input-container {
-            display: flex;
-            align-items: flex-end;
-            gap: 10px;
-            background: #f8f9fa;
-            border-radius: 25px;
-            padding: 10px 20px;
-        }
-        
-        .message-input {
-            flex: 1;
-            border: none;
-            background: none;
-            outline: none;
-            font-size: 0.95rem;
-            resize: none;
-            max-height: 100px;
-            font-family: inherit;
-            padding: 5px 0;
-        }
-        
-        .input-actions {
-            display: flex;
-            gap: 10px;
-            align-items: center;
-        }
-        
-        .input-actions button {
-            background: none;
-            border: none;
-            font-size: 1.2rem;
-            color: var(--secondary-color);
-            cursor: pointer;
-            padding: 8px;
-            border-radius: 50%;
-            transition: all 0.2s ease;
-        }
-        
-        .input-actions button:hover {
-            background: #e9ecef;
-            color: var(--primary-color);
-        }
-        
-        .send-button {
-            background: var(--primary-color) !important;
-            color: white !important;
-            width: 40px;
-            height: 40px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        
-        .send-button:hover {
-            background: #0056b3 !important;
-        }
-        
-        .ai-suggestions {
-            padding: 10px 20px;
-            background: #e9ecef;
-            display: flex;
-            gap: 10px;
-            overflow-x: auto;
-            border-bottom: 1px solid #ddd;
-        }
-        
-        .ai-suggestion {
-            padding: 8px 16px;
-            background: white;
-            border: 1px solid #ddd;
-            border-radius: 20px;
-            font-size: 0.85rem;
-            cursor: pointer;
-            white-space: nowrap;
-            transition: all 0.2s ease;
-        }
-        
-        .ai-suggestion:hover {
-            background: var(--primary-color);
-            color: white;
-            border-color: var(--primary-color);
-        }
-        
-        /* Responsive */
-        @media (max-width: 768px) {
-            .sidebar {
-                position: fixed;
-                left: -100%;
-                z-index: 1000;
-                height: 100vh;
-                box-shadow: 0 0 20px rgba(0,0,0,0.1);
-            }
-            
-            .sidebar.active {
-                left: 0;
-            }
-            
-            .message {
-                max-width: 85%;
-            }
-            
-            .chat-actions {
-                gap: 10px;
-            }
-        }
-        
-        .online-status {
-            font-size: 0.8rem;
-            color: var(--success-color);
-            display: flex;
-            align-items: center;
-            gap: 5px;
-        }
-        
-        .online-status::before {
-            content: '';
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: var(--success-color);
-        }
-        
-        .no-conversation {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            height: 100%;
-            color: var(--secondary-color);
-            text-align: center;
-            padding: 40px;
-        }
-        
-        .no-conversation i {
-            font-size: 4rem;
-            margin-bottom: 20px;
-            color: #ddd;
-        }
-        
-        .welcome-message {
-            text-align: center;
-            padding: 40px;
-            color: var(--secondary-color);
-        }
-    </style>
-</head>
-<body>
-    <div id="app">
-        <div class="app-container">
-            <!-- Sidebar -->
-            <div class="sidebar" :class="{ 'active': sidebarActive }">
-                <div class="sidebar-header">
-                    <div class="user-profile">
-                        <div class="avatar">
-                            {% verbatim %}{{ userInitials }}{% endverbatim %}
-                        </div>
-                        <div class="user-info">
-                            <h3>{% verbatim %}{{ currentUser.username }}{% endverbatim %}</h3>
-                            <div class="online-status">Online</div>
-                        </div>
-                        <div class="status-indicator"></div>
-                    </div>
-                </div>
-                
-                <div class="search-box">
-                    <input type="text" class="search-input" placeholder="Search conversations..." 
-                           v-model="searchQuery" @input="searchConversations">
-                </div>
-                
-                <div class="conversations-list">
-                    <div v-for="conversation in filteredConversations" 
-                         :key="conversation.id"
-                         class="conversation-item"
-                         :class="{ 'active': activeConversation?.id === conversation.id }"
-                         @click="selectConversation(conversation)">
-                        <div class="conversation-avatar">
-                            {% verbatim %}{{ getInitial(conversation) }}{% endverbatim %}
-                        </div>
-                        <div class="conversation-info">
-                            <h4>
-                                {% verbatim %}{{ conversation.name || getParticipantName(conversation) }}{% endverbatim %}
-                                <span class="conversation-time">{% verbatim %}{{ formatTime(conversation.updated_at) }}{% endverbatim %}</span>
-                            </h4>
-                            <p>{% verbatim %}{{ conversation.last_message?.content || 'No messages yet' }}{% endverbatim %}</p>
-                        </div>
-                        <div v-if="conversation.unread_count > 0" class="unread-badge">
-                            {% verbatim %}{{ conversation.unread_count }}{% endverbatim %}
-                        </div>
-                    </div>
-                    
-                    <div v-if="filteredConversations.length === 0" class="no-conversation">
-                        <div>
-                            <i class="fas fa-comments"></i>
-                            <p>No conversations found</p>
-                            <button class="btn btn-primary" @click="startNewChat" style="margin-top: 20px;">
-                                Start New Chat
-                            </button>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="sidebar-footer">
-                    <button @click="toggleSidebar" title="Toggle Sidebar">
-                        <i class="fas fa-bars"></i>
-                    </button>
-                    <button @click="newGroup" title="New Group">
-                        <i class="fas fa-users"></i>
-                    </button>
-                    <button @click="settings" title="Settings">
-                        <i class="fas fa-cog"></i>
-                    </button>
-                    <button @click="logout" title="Logout">
-                        <i class="fas fa-sign-out-alt"></i>
-                    </button>
-                </div>
+
+{% block title %}Chat{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/chat.css' %}">
+{% endblock %}
+
+{% block content %}
+<div id="chat-app" class="chat-app">
+    <!-- Sidebar -->
+    <div class="sidebar">
+        <!-- User Profile -->
+        <div class="user-profile">
+            <div class="avatar" id="profileAvatar">
+                {% if user.profile_picture %}
+                <img src="{{ user.profile_picture.url }}" alt="{{ user.username }}">
+                {% else %}
+                <div class="avatar-placeholder">{{ user.initials }}</div>
+                {% endif %}
             </div>
-            
-            <!-- Main Chat Area -->
-            <div class="chat-area">
-                <div v-if="activeConversation" class="chat-header">
-                    <div class="chat-partner">
-                        <div class="conversation-avatar">
-                            {% verbatim %}{{ getInitial(activeConversation) }}{% endverbatim %}
-                        </div>
-                        <div>
-                            <h3>{% verbatim %}{{ activeConversation.name || getParticipantNames() }}{% endverbatim %}</h3>
-                            <div class="online-status">Online</div>
-                        </div>
-                    </div>
-                    
-                    <div class="chat-actions">
-                        <button @click="toggleSidebar" title="Toggle Sidebar">
-                            <i class="fas fa-bars"></i>
+            <div class="user-info">
+                <h3>{{ user.username }}</h3>
+                <p class="user-status">
+                    <span class="status-indicator online"></span>
+                    <span id="statusText">Online</span>
+                </p>
+            </div>
+            <div class="user-actions">
+                <button class="icon-btn" id="notificationsBtn" title="Notifications">
+                    <i class="fas fa-bell"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Search -->
+        <div class="search-box">
+            <i class="fas fa-search"></i>
+            <input type="text" id="searchInput" placeholder="Search conversations...">
+        </div>
+
+        <!-- Conversations -->
+        <div class="conversations-section">
+            <div class="section-header">
+                <h4>Conversations</h4>
+                <button class="icon-btn" id="newChatBtn" title="New Chat">
+                    <i class="fas fa-plus"></i>
+                </button>
+            </div>
+            <div class="conversations-list" id="conversationsList">
+                <!-- Conversations will be loaded here -->
+            </div>
+        </div>
+
+        <!-- Footer Actions -->
+        <div class="sidebar-footer">
+            <button class="icon-btn" id="themeToggleBtn">
+                <i class="fas fa-moon"></i>
+                <span>Theme</span>
+            </button>
+            <button class="icon-btn" id="settingsBtn">
+                <i class="fas fa-cog"></i>
+                <span>Settings</span>
+            </button>
+            <button class="icon-btn" id="logoutBtn">
+                <i class="fas fa-sign-out-alt"></i>
+                <span>Logout</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Main Chat Area -->
+    <div class="chat-main">
+        <!-- Chat Header -->
+        <div class="chat-header" id="chatHeader">
+            <div class="welcome-message">
+                <h2>Welcome to Chat!</h2>
+                <p>Select a conversation or start a new chat to begin messaging</p>
+            </div>
+        </div>
+
+        <!-- Messages Area -->
+        <div class="messages-container" id="messagesContainer">
+            <div class="welcome-chat">
+                <div class="welcome-content">
+                    <i class="fas fa-comments"></i>
+                    <h2>Start Chatting</h2>
+                    <p>Select a conversation from the sidebar or create a new one</p>
+                    <div class="welcome-actions">
+                        <button class="btn btn-primary" id="startNewChatBtn">
+                            <i class="fas fa-plus"></i> New Chat
                         </button>
-                        <button @click="videoCall" title="Video Call">
-                            <i class="fas fa-video"></i>
+                        <button class="btn btn-secondary" id="startNewGroupBtn">
+                            <i class="fas fa-users"></i> New Group
                         </button>
-                        <button @click="voiceCall" title="Voice Call">
-                            <i class="fas fa-phone"></i>
-                        </button>
-                        <button @click="showInfo" title="Conversation Info">
-                            <i class="fas fa-info-circle"></i>
-                        </button>
-                    </div>
-                </div>
-                <div v-else class="chat-header">
-                    <div class="welcome-message">
-                        <h2>Welcome to AI Chat!</h2>
-                        <p>Select a conversation or start a new one to begin messaging</p>
-                    </div>
-                </div>
-                
-                <div class="messages-container" ref="messagesContainer">
-                    <div v-if="activeConversation">
-                        <div v-for="message in messages" :key="message.id"
-                             class="message"
-                             :class="{
-                                 'sent': message.sender.id === currentUser.id,
-                                 'received': message.sender.id !== currentUser.id,
-                                 'ai': message.sender.username === 'AI Assistant'
-                             }">
-                            <div class="message-content">
-                                {% verbatim %}{{ message.content }}{% endverbatim %}
-                            </div>
-                            <div class="message-time">
-                                {% verbatim %}{{ formatMessageTime(message.timestamp) }}{% endverbatim %}
-                            </div>
-                        </div>
-                        
-                        <div v-if="typingUsers.length > 0" class="typing-indicator">
-                            <span>{% verbatim %}{{ typingUsers.join(', ') }}{% endverbatim %} is typing</span>
-                            <div class="typing-dots">
-                                <span></span>
-                                <span></span>
-                                <span></span>
-                            </div>
-                        </div>
-                    </div>
-                    <div v-else class="no-conversation">
-                        <div>
-                            <i class="fas fa-comment-alt"></i>
-                            <h3>No Conversation Selected</h3>
-                            <p>Select a conversation from the sidebar or start a new chat</p>
-                        </div>
-                    </div>
-                </div>
-                
-                <div v-if="activeConversation">
-                    <!-- AI Suggestions -->
-                    <div v-if="aiSuggestions.length > 0" class="ai-suggestions">
-                        <div v-for="(suggestion, index) in aiSuggestions" 
-                             :key="index"
-                             class="ai-suggestion"
-                             @click="useSuggestion(suggestion)">
-                            {% verbatim %}{{ suggestion }}{% endverbatim %}
-                        </div>
-                    </div>
-                    
-                    <!-- Message Input -->
-                    <div class="message-input-area">
-                        <div class="input-container">
-                            <button @click="attachFile" title="Attach File">
-                                <i class="fas fa-paperclip"></i>
-                            </button>
-                            <button @click="emojiPicker" title="Emoji">
-                                <i class="far fa-smile"></i>
-                            </button>
-                            
-                            <textarea class="message-input" 
-                                      v-model="newMessage"
-                                      @input="handleInput"
-                                      @keydown.enter.exact.prevent="sendMessage"
-                                      placeholder="Type a message..."
-                                      rows="1"></textarea>
-                            
-                            <div class="input-actions">
-                                <button @click="toggleAI" title="AI Assistant">
-                                    <i class="fas fa-robot" :style="{ color: aiEnabled ? 'var(--primary-color)' : '' }"></i>
-                                </button>
-                                <button class="send-button" @click="sendMessage" title="Send">
-                                    <i class="fas fa-paper-plane"></i>
-                                </button>
-                            </div>
-                        </div>
                     </div>
                 </div>
             </div>
         </div>
-    </div>
 
-    <script>
-        const { createApp, ref, computed, onMounted, watch, nextTick } = Vue;
-        
-        createApp({
-            setup() {
-                // State
-                const currentUser = ref({
-                    id: 1,
-                    username: '{% if user.is_authenticated %}{{ user.username }}{% else %}Guest{% endif %}',
-                    email: '{% if user.is_authenticated %}{{ user.email }}{% else %}guest@example.com{% endif %}'
-                });
+        <!-- Message Input -->
+        <div class="message-input-area" id="messageInputArea" style="display: none;">
+            <div class="input-container">
+                <!-- File Attachment -->
+                <button class="icon-btn attach-btn" id="attachBtn" title="Attach File">
+                    <i class="fas fa-paperclip"></i>
+                </button>
+                <input type="file" id="fileInput" multiple style="display: none;">
                 
-                const conversations = ref([
-                    {
-                        id: 1,
-                        name: 'General Chat',
-                        participants: [{ username: 'John' }, { username: 'Jane' }],
-                        last_message: { content: 'Hello there!', sender: 'John' },
-                        updated_at: '2024-01-15T10:30:00',
-                        unread_count: 2
-                    },
-                    {
-                        id: 2,
-                        name: 'Work Team',
-                        participants: [{ username: 'Alice' }, { username: 'Bob' }, { username: 'Charlie' }],
-                        last_message: { content: 'Meeting at 3 PM', sender: 'Alice' },
-                        updated_at: '2024-01-15T09:15:00',
-                        unread_count: 0
-                    },
-                    {
-                        id: 3,
-                        name: '',
-                        participants: [{ username: 'Alex' }],
-                        last_message: { content: 'Are you free tomorrow?', sender: 'Alex' },
-                        updated_at: '2024-01-14T16:45:00',
-                        unread_count: 1
-                    }
-                ]);
+                <!-- Emoji Picker -->
+                <button class="icon-btn emoji-btn" id="emojiBtn" title="Emoji">
+                    <i class="far fa-smile"></i>
+                </button>
                 
-                const activeConversation = ref(null);
-                const messages = ref([]);
-                const newMessage = ref('');
-                const searchQuery = ref('');
-                const typingUsers = ref([]);
-                const aiSuggestions = ref([]);
-                const aiEnabled = ref(true);
-                const sidebarActive = ref(false);
-                const messagesContainer = ref(null);
+                <!-- Message Input -->
+                <textarea id="messageInput" placeholder="Type a message..." rows="1"></textarea>
                 
-                // Computed
-                const userInitials = computed(() => {
-                    if (!currentUser.value.username) return 'U';
-                    return currentUser.value.username.charAt(0).toUpperCase();
-                });
+                <!-- Send Button -->
+                <button class="icon-btn send-btn" id="sendBtn" title="Send">
+                    <i class="fas fa-paper-plane"></i>
+                </button>
+            </div>
+            
+            <!-- AI Suggestions -->
+            <div class="ai-suggestions" id="aiSuggestions">
+                <!-- AI suggestions will appear here -->
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modals -->
+<div class="modal" id="profileModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Profile Settings</h3>
+            <button class="modal-close" id="closeProfileModal">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="modal-body">
+            <div class="profile-picture-section">
+                <div class="current-picture">
+                    {% if user.profile_picture %}
+                    <img src="{{ user.profile_picture.url }}" alt="{{ user.username }}" id="profilePicture">
+                    {% else %}
+                    <div class="avatar-large" id="profileAvatarLarge">{{ user.initials }}</div>
+                    {% endif %}
+                </div>
+                <button class="btn btn-secondary" id="changePictureBtn">
+                    <i class="fas fa-upload"></i> Change Picture
+                </button>
+                <input type="file" id="profilePictureInput" accept="image/*" style="display: none;">
+            </div>
+            
+            <form id="profileForm">
+                <div class="form-group">
+                    <label for="profileUsername">Username</label>
+                    <input type="text" id="profileUsername" value="{{ user.username }}" disabled>
+                </div>
                 
-                const filteredConversations = computed(() => {
-                    if (!searchQuery.value) return conversations.value;
-                    const query = searchQuery.value.toLowerCase();
-                    return conversations.value.filter(conv => 
-                        (conv.name && conv.name.toLowerCase().includes(query)) ||
-                        conv.participants.some(p => p.username.toLowerCase().includes(query))
-                    );
-                });
+                <div class="form-group">
+                    <label for="profileEmail">Email</label>
+                    <input type="email" id="profileEmail" value="{{ user.email }}" disabled>
+                </div>
                 
-                // Methods
-                const getInitial = (conversation) => {
-                    if (conversation.name && conversation.name.length > 0) {
-                        return conversation.name.charAt(0).toUpperCase();
-                    } else if (conversation.participants && conversation.participants.length > 0) {
-                        return conversation.participants[0].username.charAt(0).toUpperCase();
-                    }
-                    return 'C';
-                };
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="profileFirstName">First Name</label>
+                        <input type="text" id="profileFirstName" value="{{ user.first_name|default:'' }}">
+                    </div>
+                    <div class="form-group">
+                        <label for="profileLastName">Last Name</label>
+                        <input type="text" id="profileLastName" value="{{ user.last_name|default:'' }}">
+                    </div>
+                </div>
                 
-                const getParticipantName = (conversation) => {
-                    if (conversation.participants && conversation.participants.length > 0) {
-                        return conversation.participants[0].username;
-                    }
-                    return 'Unknown';
-                };
+                <div class="form-group">
+                    <label for="profileBio">Bio</label>
+                    <textarea id="profileBio" rows="3" placeholder="Tell us about yourself...">{{ user.bio|default:'' }}</textarea>
+                </div>
                 
-                const formatTime = (timeString) => {
-                    const date = new Date(timeString);
-                    const now = new Date();
-                    const diff = now - date;
-                    const diffDays = Math.floor(diff / (1000 * 60 * 60 * 24));
-                    
-                    if (diffDays === 0) {
-                        return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                    } else if (diffDays === 1) {
-                        return 'Yesterday';
-                    } else if (diffDays < 7) {
-                        return date.toLocaleDateString([], { weekday: 'short' });
-                    } else {
-                        return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
-                    }
-                };
-                
-                const formatMessageTime = (timeString) => {
-                    const date = new Date(timeString);
-                    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                };
-                
-                const selectConversation = (conversation) => {
-                    activeConversation.value = conversation;
-                    loadMessages(conversation.id);
-                    sidebarActive.value = false;
-                };
-                
-                const loadMessages = (conversationId) => {
-                    // Mock messages for demo
-                    messages.value = [
-                        {
-                            id: 1,
-                            content: 'Hello! How are you doing today?',
-                            sender: { id: 2, username: 'John' },
-                            timestamp: '2024-01-15T10:25:00'
-                        },
-                        {
-                            id: 2,
-                            content: 'I am doing great! Just working on the new project.',
-                            sender: currentUser.value,
-                            timestamp: '2024-01-15T10:26:00'
-                        },
-                        {
-                            id: 3,
-                            content: 'That sounds interesting. Need any help with it?',
-                            sender: { id: 2, username: 'John' },
-                            timestamp: '2024-01-15T10:27:00'
-                        },
-                        {
-                            id: 4,
-                            content: 'Actually, I could use some help with the AI integration part.',
-                            sender: currentUser.value,
-                            timestamp: '2024-01-15T10:28:00'
-                        },
-                        {
-                            id: 5,
-                            content: 'Sure! I can help with that. When would be a good time to discuss?',
-                            sender: { id: 2, username: 'John' },
-                            timestamp: '2024-01-15T10:29:00'
-                        }
-                    ];
-                    
-                    // Scroll to bottom
-                    nextTick(() => {
-                        scrollToBottom();
-                    });
-                };
-                
-                const sendMessage = () => {
-                    if (!newMessage.value.trim() || !activeConversation.value) return;
-                    
-                    const message = {
-                        id: Date.now(),
-                        content: newMessage.value,
-                        sender: currentUser.value,
-                        timestamp: new Date().toISOString()
-                    };
-                    
-                    messages.value.push(message);
-                    newMessage.value = '';
-                    
-                    // Auto-reply for demo
-                    if (aiEnabled.value && Math.random() > 0.5) {
-                        setTimeout(() => {
-                            const aiReply = {
-                                id: Date.now() + 1,
-                                content: 'That sounds interesting! Would you like me to help with that?',
-                                sender: { id: 999, username: 'AI Assistant' },
-                                timestamp: new Date().toISOString()
-                            };
-                            messages.value.push(aiReply);
-                            scrollToBottom();
-                        }, 1000);
-                    }
-                    
-                    scrollToBottom();
-                };
-                
-                const scrollToBottom = () => {
-                    if (messagesContainer.value) {
-                        messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight;
-                    }
-                };
-                
-                const handleInput = () => {
-                    // Handle typing indicator and AI suggestions
-                    if (newMessage.value.length > 3) {
-                        // Mock AI suggestions
-                        aiSuggestions.value = [
-                            'Can you explain more?',
-                            'That sounds great!',
-                            'I agree with you',
-                            'When should we meet?'
-                        ];
-                    } else {
-                        aiSuggestions.value = [];
-                    }
-                };
-                
-                const useSuggestion = (suggestion) => {
-                    newMessage.value = suggestion;
-                    aiSuggestions.value = [];
-                };
-                
-                const toggleAI = () => {
-                    aiEnabled.value = !aiEnabled.value;
-                };
-                
-                const toggleSidebar = () => {
-                    sidebarActive.value = !sidebarActive.value;
-                };
-                
-                const startNewChat = () => {
-                    alert('Starting new chat...');
-                    // Implement new chat logic
-                };
-                
-                const newGroup = () => {
-                    alert('Create new group...');
-                };
-                
-                const settings = () => {
-                    alert('Open settings...');
-                };
-                
-                const logout = () => {
-                    window.location.href = '{% url "account_logout" %}';
-                };
-                
-                const videoCall = () => {
-                    alert('Start video call...');
-                };
-                
-                const voiceCall = () => {
-                    alert('Start voice call...');
-                };
-                
-                const showInfo = () => {
-                    alert('Show conversation info...');
-                };
-                
-                const attachFile = () => {
-                    alert('Attach file...');
-                };
-                
-                const emojiPicker = () => {
-                    alert('Open emoji picker...');
-                };
-                
-                const getParticipantNames = () => {
-                    if (!activeConversation.value?.participants) return '';
-                    return activeConversation.value.participants
-                        .map(p => p.username)
-                        .join(', ');
-                };
-                
-                const searchConversations = () => {
-                    // Search logic already in computed property
-                };
-                
-                // Lifecycle
-                onMounted(() => {
-                    // Initialize WebSocket connection
-                    // initWebSocket();
-                    
-                    // Load initial data
-                    if (conversations.value.length > 0) {
-                        selectConversation(conversations.value[0]);
-                    }
-                });
-                
-                // Watch for new messages to scroll
-                watch(messages, () => {
-                    scrollToBottom();
-                }, { deep: true });
-                
-                return {
-                    // State
-                    currentUser,
-                    conversations,
-                    activeConversation,
-                    messages,
-                    newMessage,
-                    searchQuery,
-                    typingUsers,
-                    aiSuggestions,
-                    aiEnabled,
-                    sidebarActive,
-                    messagesContainer,
-                    
-                    // Computed
-                    userInitials,
-                    filteredConversations,
-                    
-                    // Methods
-                    getInitial,
-                    getParticipantName,
-                    formatTime,
-                    formatMessageTime,
-                    selectConversation,
-                    sendMessage,
-                    handleInput,
-                    useSuggestion,
-                    toggleAI,
-                    toggleSidebar,
-                    startNewChat,
-                    newGroup,
-                    settings,
-                    logout,
-                    videoCall,
-                    voiceCall,
-                    showInfo,
-                    attachFile,
-                    emojiPicker,
-                    getParticipantNames,
-                    searchConversations
-                };
-            }
-        }).mount('#app');
-    </script>
-</body>
-</html>
+                <div class="form-group">
+                    <label for="profilePhone">Phone Number</label>
+                    <input type="tel" id="profilePhone" value="{{ user.phone_number|default:'' }}">
+                </div>
+            </form>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" id="cancelProfileBtn">Cancel</button>
+            <button class="btn btn-primary" id="saveProfileBtn">Save Changes</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal" id="newChatModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>New Conversation</h3>
+            <button class="modal-close" id="closeNewChatModal">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <input type="text" id="userSearchInput" placeholder="Search users by name or email...">
+            </div>
+            
+            <div class="users-list" id="usersList">
+                <!-- Users will be loaded here -->
+            </div>
+            
+            <div class="form-group" id="groupOptions" style="display: none;">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="isGroupCheckbox">
+                    <span>Create as group chat</span>
+                </label>
+                <div class="form-group" id="groupNameField" style="display: none;">
+                    <input type="text" id="groupNameInput" placeholder="Group name (optional)">
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" id="cancelNewChatBtn">Cancel</button>
+            <button class="btn btn-primary" id="createChatBtn" disabled>
+                <i class="fas fa-plus"></i> Create Chat
+            </button>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/chat.js' %}"></script>
+<script>
+    // Initialize chat application
+    document.addEventListener('DOMContentLoaded', function() {
+        const chatApp = new ChatApp();
+        chatApp.init();
+        window.chatApp = chatApp;
+    });
+</script>
+{% endblock %}
